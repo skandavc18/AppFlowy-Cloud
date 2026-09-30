@@ -77,6 +77,7 @@ pub async fn select_access_request_by_request_id<'a, E: Executor<'a, Database = 
         af_workspace.deleted_at,
         af_workspace.workspace_name,
         af_workspace.icon,
+        af_workspace.cover,
         request_id_workspace_member_count.member_count
       ) AS "workspace!: AFWorkspaceWithMemberCountRow",
       (

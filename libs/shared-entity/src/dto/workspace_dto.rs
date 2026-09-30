@@ -114,6 +114,8 @@ pub struct CreateWorkspaceParam {
   pub workspace_name: Option<String>,
   #[serde(default)]
   pub workspace_icon: Option<String>,
+  #[serde(default)]
+  pub workspace_cover: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -121,6 +123,7 @@ pub struct PatchWorkspaceParam {
   pub workspace_id: Uuid,
   pub workspace_name: Option<String>,
   pub workspace_icon: Option<String>,
+  pub workspace_cover: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

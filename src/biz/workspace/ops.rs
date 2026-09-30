@@ -75,7 +75,7 @@ pub async fn create_empty_workspace(
   workspace_name: &str,
 ) -> Result<AFWorkspace, AppResponseError> {
   let new_workspace_row =
-    insert_user_workspace(pg_pool, user_uuid, workspace_name, "", false).await?;
+    insert_user_workspace(pg_pool, user_uuid, workspace_name, "", "", false).await?;
   workspace_access_control
     .insert_role(&user_uid, &new_workspace_row.workspace_id, AFRole::Owner)
     .await?;
@@ -124,9 +124,17 @@ pub async fn create_workspace_for_user(
   user_uid: i64,
   workspace_name: &str,
   workspace_icon: &str,
+  workspace_cover: &str,
 ) -> Result<AFWorkspace, AppResponseError> {
-  let new_workspace_row =
-    insert_user_workspace(pg_pool, user_uuid, workspace_name, workspace_icon, true).await?;
+  let new_workspace_row = insert_user_workspace(
+    pg_pool,
+    user_uuid,
+    workspace_name,
+    workspace_icon,
+    workspace_cover,
+    true,
+  )
+  .await?;
 
   workspace_access_control
     .insert_role(&user_uid, &new_workspace_row.workspace_id, AFRole::Owner)
@@ -156,6 +164,7 @@ pub async fn patch_workspace(
   workspace_id: &Uuid,
   workspace_name: Option<&str>,
   workspace_icon: Option<&str>,
+  workspace_cover: Option<&str>,
 ) -> Result<(), AppResponseError> {
   let mut tx = pg_pool.begin().await?;
   if let Some(workspace_name) = workspace_name {
@@ -163,6 +172,9 @@ pub async fn patch_workspace(
   }
   if let Some(workspace_icon) = workspace_icon {
     change_workspace_icon(&mut tx, workspace_id, workspace_icon).await?;
+  }
+  if let Some(workspace_cover) = workspace_cover {
+    change_workspace_cover(&mut tx, workspace_id, workspace_cover).await?;
   }
   tx.commit().await?;
   Ok(())

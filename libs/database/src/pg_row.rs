@@ -26,6 +26,7 @@ pub struct AFWorkspaceRow {
   pub deleted_at: Option<DateTime<Utc>>,
   pub workspace_name: Option<String>,
   pub icon: Option<String>,
+  pub cover: Option<String>,
 }
 
 impl TryFrom<AFWorkspaceRow> for AFWorkspace {
@@ -42,6 +43,7 @@ impl TryFrom<AFWorkspaceRow> for AFWorkspace {
     let workspace_name = value.workspace_name.unwrap_or_default();
     let created_at = value.created_at.unwrap_or_else(Utc::now);
     let icon = value.icon.unwrap_or_default();
+    let cover = value.cover.unwrap_or_default();
 
     Ok(Self {
       workspace_id: value.workspace_id,
@@ -53,6 +55,7 @@ impl TryFrom<AFWorkspaceRow> for AFWorkspace {
       workspace_name,
       created_at,
       icon,
+      cover,
       member_count: None,
       role: None,
     })
@@ -71,6 +74,7 @@ pub struct AFWorkspaceRowWithMemberCountAndRole {
   pub deleted_at: Option<DateTime<Utc>>,
   pub workspace_name: Option<String>,
   pub icon: Option<String>,
+  pub cover: Option<String>,
   pub member_count: i64,
   pub role: i32,
 }
@@ -89,6 +93,7 @@ impl TryFrom<AFWorkspaceRowWithMemberCountAndRole> for AFWorkspace {
     let workspace_name = value.workspace_name.unwrap_or_default();
     let created_at = value.created_at.unwrap_or_else(Utc::now);
     let icon = value.icon.unwrap_or_default();
+    let cover = value.cover.unwrap_or_default();
 
     Ok(Self {
       workspace_id: value.workspace_id,
@@ -100,6 +105,7 @@ impl TryFrom<AFWorkspaceRowWithMemberCountAndRole> for AFWorkspace {
       workspace_name,
       created_at,
       icon,
+      cover,
       member_count: Some(value.member_count),
       role: Some(AFRole::from(value.role)),
     })
@@ -118,6 +124,7 @@ pub struct AFWorkspaceWithMemberCountRow {
   pub deleted_at: Option<DateTime<Utc>>,
   pub workspace_name: Option<String>,
   pub icon: Option<String>,
+  pub cover: Option<String>,
   pub member_count: i64,
 }
 
@@ -135,6 +142,7 @@ impl TryFrom<AFWorkspaceWithMemberCountRow> for AFWorkspace {
     let workspace_name = value.workspace_name.unwrap_or_default();
     let created_at = value.created_at.unwrap_or_else(Utc::now);
     let icon = value.icon.unwrap_or_default();
+    let cover = value.cover.unwrap_or_default();
 
     Ok(Self {
       workspace_id: value.workspace_id,
@@ -146,6 +154,7 @@ impl TryFrom<AFWorkspaceWithMemberCountRow> for AFWorkspace {
       workspace_name,
       created_at,
       icon,
+      cover,
       member_count: Some(value.member_count),
       role: None,
     })

@@ -445,6 +445,7 @@ async fn create_workspace_handler(
     .unwrap_or_else(|| format!("workspace_{}", chrono::Utc::now().timestamp()));
 
   let workspace_icon = create_workspace_param.workspace_icon.unwrap_or_default();
+  let workspace_cover = create_workspace_param.workspace_cover.unwrap_or_default();
   let new_workspace = workspace::ops::create_workspace_for_user(
     &state.pg_pool,
     state.workspace_access_control.clone(),
@@ -454,6 +455,7 @@ async fn create_workspace_handler(
     uid,
     &workspace_name,
     &workspace_icon,
+    &workspace_cover,
   )
   .await?;
 
@@ -478,6 +480,7 @@ async fn patch_workspace_handler(
     &params.workspace_id,
     params.workspace_name.as_deref(),
     params.workspace_icon.as_deref(),
+    params.workspace_cover.as_deref(),
   )
   .await?;
   Ok(AppResponse::Ok().into())

@@ -699,6 +699,8 @@ pub struct AFWorkspace {
   pub workspace_name: String,
   pub created_at: DateTime<Utc>,
   pub icon: String,
+  #[serde(default)]
+  pub cover: String,
   pub member_count: Option<i64>,
   #[serde(default)]
   pub role: Option<AFRole>, // role of the user requesting the workspace

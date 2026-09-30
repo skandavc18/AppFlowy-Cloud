@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n      UPDATE public.af_workspace\n      SET cover = $1\n      WHERE workspace_id = $2\n    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1f4d2b006b44376818e760c5721fed21da1790cae9dd31708bc464358e7aa8cd"
+}

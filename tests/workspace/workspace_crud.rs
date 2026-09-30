@@ -146,9 +146,11 @@ async fn add_and_delete_workspace_for_user() {
     .create_workspace(CreateWorkspaceParam {
       workspace_name: Some("my_workspace".to_string()),
       workspace_icon: Some("🏡".to_string()),
+      workspace_cover: Some("cover123".to_string()),
     })
     .await
     .unwrap();
+  assert_eq!(newly_added_workspace.cover, "cover123");
   let workspaces = c.get_workspaces().await.unwrap();
   assert_eq!(workspaces.len(), 2);
 
@@ -157,6 +159,7 @@ async fn add_and_delete_workspace_for_user() {
     .find(|w| {
       w.workspace_name == "my_workspace"
         && w.icon == "🏡"
+        && w.cover == "cover123"
         && w.workspace_id == newly_added_workspace.workspace_id
     })
     .unwrap();
@@ -171,6 +174,8 @@ async fn add_and_delete_workspace_for_user() {
     ))
     .await
     .unwrap();
+  let opened_workspace = c.open_workspace(&workspace_id).await.unwrap();
+  assert_eq!(opened_workspace.cover, "cover123");
 
   c.delete_workspace(&workspace_id).await.unwrap();
   let workspaces = c.get_workspaces().await.unwrap();
@@ -204,6 +209,7 @@ async fn test_workspace_rename_and_icon_change() {
       .expect("No workspace found")
       .workspace_name;
     assert_eq!(actual_new_name, desired_new_name);
+    assert_eq!(workspaces.first().expect("No workspace found").cover, "");
   }
 
   {
@@ -230,14 +236,32 @@ async fn test_workspace_rename_and_icon_change() {
     .await
     .expect("Failed to change icon");
     let workspaces = c.get_workspaces().await.expect("Failed to get workspaces");
-    let icon = &workspaces.first().expect("No workspace found").icon;
+    let workspace = workspaces.first().expect("No workspace found");
+    let icon = &workspace.icon;
     assert_eq!(icon, "icon123");
+    assert_eq!(workspace.cover, "");
+  }
+  {
+    c.patch_workspace(PatchWorkspaceParam {
+      workspace_id,
+      workspace_cover: Some("cover123".to_string()),
+      ..Default::default()
+    })
+    .await
+    .expect("Failed to change cover");
+    let workspace = c
+      .open_workspace(&workspace_id)
+      .await
+      .expect("Failed to open workspace");
+    assert_eq!(workspace.cover, "cover123");
+    assert_eq!(workspace.icon, "icon123");
   }
   {
     c.patch_workspace(PatchWorkspaceParam {
       workspace_id,
       workspace_name: Some("new_name456".to_string()),
       workspace_icon: Some("new_icon456".to_string()),
+      workspace_cover: Some("new_cover456".to_string()),
     })
     .await
     .expect("Failed to change icon");
@@ -245,8 +269,26 @@ async fn test_workspace_rename_and_icon_change() {
     let workspace = workspaces.first().expect("No workspace found");
 
     let icon = workspace.icon.as_str();
+    let cover = workspace.cover.as_str();
     let name = workspace.workspace_name.as_str();
     assert_eq!(icon, "new_icon456");
+    assert_eq!(cover, "new_cover456");
     assert_eq!(name, "new_name456");
+  }
+  {
+    c.patch_workspace(PatchWorkspaceParam {
+      workspace_id,
+      workspace_cover: Some(String::new()),
+      ..Default::default()
+    })
+    .await
+    .expect("Failed to clear cover");
+    let workspace = c
+      .open_workspace(&workspace_id)
+      .await
+      .expect("Failed to open workspace");
+    assert_eq!(workspace.cover, "");
+    assert_eq!(workspace.icon, "new_icon456");
+    assert_eq!(workspace.workspace_name, "new_name456");
   }
 }

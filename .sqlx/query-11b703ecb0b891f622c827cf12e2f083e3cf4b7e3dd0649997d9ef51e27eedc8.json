@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n      WITH workspace_member_count AS (\n        SELECT\n          workspace_id,\n          COUNT(*) AS member_count\n        FROM af_workspace_member\n        WHERE workspace_id = $1 AND role_id != $3\n        GROUP BY workspace_id\n      )\n\n      SELECT\n        af_workspace.workspace_id,\n        database_storage_id,\n        owner_uid,\n        owner_profile.name as owner_name,\n        owner_profile.email as owner_email,\n        af_workspace.created_at,\n        workspace_type,\n        af_workspace.deleted_at,\n        workspace_name,\n        icon,\n        workspace_member_count.member_count AS \"member_count!\",\n        role_id AS \"role!\"\n      FROM public.af_workspace\n      JOIN public.af_user owner_profile ON af_workspace.owner_uid = owner_profile.uid\n      JOIN af_workspace_member ON (af_workspace.workspace_id = af_workspace_member.workspace_id\n        AND af_workspace_member.uid = $2)\n      JOIN workspace_member_count ON af_workspace.workspace_id = workspace_member_count.workspace_id\n      WHERE af_workspace.workspace_id = $1\n        AND COALESCE(af_workspace.is_initialized, true) = true;\n    ",
+  "query": "\n      WITH user_workspace_id AS (\n        SELECT workspace_id\n        FROM af_workspace_member\n        JOIN af_user ON af_workspace_member.uid = af_user.uid\n        WHERE af_user.uuid = $1\n      ),\n      workspace_member_count AS (\n        SELECT\n          workspace_id,\n          COUNT(*) AS member_count\n        FROM af_workspace_member\n        JOIN user_workspace_id USING (workspace_id)\n        WHERE role_id != $2\n        GROUP BY workspace_id\n      )\n\n      SELECT\n        w.workspace_id,\n        w.database_storage_id,\n        w.owner_uid,\n        u.name AS owner_name,\n        u.email AS owner_email,\n        w.created_at,\n        w.workspace_type,\n        w.deleted_at,\n        w.workspace_name,\n        w.icon,\n        w.cover,\n        wmc.member_count AS \"member_count!\",\n        wm.role_id AS \"role!\"\n      FROM af_workspace w\n      JOIN af_workspace_member wm ON w.workspace_id = wm.workspace_id\n      JOIN public.af_user u ON w.owner_uid = u.uid\n      JOIN workspace_member_count wmc ON w.workspace_id = wmc.workspace_id\n      WHERE wm.uid = (\n         SELECT uid FROM public.af_user WHERE uuid = $1\n      )\n      AND COALESCE(w.is_initialized, true) = true;\n    ",
   "describe": {
     "columns": [
       {
@@ -55,11 +55,16 @@
       },
       {
         "ordinal": 10,
+        "name": "cover",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
         "name": "member_count!",
         "type_info": "Int8"
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "role!",
         "type_info": "Int4"
       }
@@ -67,7 +72,6 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Int8",
         "Int4"
       ]
     },
@@ -82,9 +86,10 @@
       true,
       true,
       false,
+      false,
       null,
       false
     ]
   },
-  "hash": "6716ec4787f7155af97a4890730f4b3fe564ead8d99f8355ac249f9b39316238"
+  "hash": "11b703ecb0b891f622c827cf12e2f083e3cf4b7e3dd0649997d9ef51e27eedc8"
 }

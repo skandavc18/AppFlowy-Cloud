@@ -48,14 +48,15 @@ pub async fn insert_user_workspace(
   user_uuid: &Uuid,
   workspace_name: &str,
   workspace_icon: &str,
+  workspace_cover: &str,
   is_initialized: bool,
 ) -> Result<AFWorkspaceRow, AppError> {
   let workspace = sqlx::query_as!(
     AFWorkspaceRow,
     r#"
     WITH new_workspace AS (
-      INSERT INTO public.af_workspace (owner_uid, workspace_name, icon, is_initialized)
-      VALUES ((SELECT uid FROM public.af_user WHERE uuid = $1), $2, $3, $4)
+      INSERT INTO public.af_workspace (owner_uid, workspace_name, icon, cover, is_initialized)
+      VALUES ((SELECT uid FROM public.af_user WHERE uuid = $1), $2, $3, $4, $5)
       RETURNING *
     )
     SELECT
@@ -68,13 +69,15 @@ pub async fn insert_user_workspace(
       workspace_type,
       new_workspace.deleted_at,
       workspace_name,
-      icon
+      icon,
+      cover
     FROM new_workspace
     JOIN public.af_user AS owner_profile ON new_workspace.owner_uid = owner_profile.uid;
     "#,
     user_uuid,
     workspace_name,
     workspace_icon,
+    workspace_cover,
     is_initialized,
   )
   .fetch_one(pg_pool)
@@ -128,6 +131,33 @@ pub async fn change_workspace_icon(
   if res.rows_affected() != 1 {
     tracing::error!(
       "Failed to change workspace icon, workspace_id: {}",
+      workspace_id
+    );
+  }
+  Ok(())
+}
+
+#[inline]
+pub async fn change_workspace_cover(
+  tx: &mut Transaction<'_, sqlx::Postgres>,
+  workspace_id: &Uuid,
+  cover: &str,
+) -> Result<(), AppError> {
+  let res = sqlx::query!(
+    r#"
+      UPDATE public.af_workspace
+      SET cover = $1
+      WHERE workspace_id = $2
+    "#,
+    cover,
+    workspace_id,
+  )
+  .execute(tx.deref_mut())
+  .await?;
+
+  if res.rows_affected() != 1 {
+    tracing::error!(
+      "Failed to change workspace cover, workspace_id: {}",
       workspace_id
     );
   }
@@ -731,7 +761,8 @@ pub async fn select_workspace<'a, E: Executor<'a, Database = Postgres>>(
         workspace_type,
         af_workspace.deleted_at,
         workspace_name,
-        icon
+        icon,
+        cover
       FROM public.af_workspace
       JOIN public.af_user owner_profile ON af_workspace.owner_uid = owner_profile.uid
       WHERE af_workspace.workspace_id = $1
@@ -773,6 +804,7 @@ pub async fn select_workspace_with_count_and_role<'a, E: Executor<'a, Database =
         af_workspace.deleted_at,
         workspace_name,
         icon,
+        cover,
         workspace_member_count.member_count AS "member_count!",
         role_id AS "role!"
       FROM public.af_workspace
@@ -894,6 +926,7 @@ pub async fn select_all_user_workspaces<'a, E: Executor<'a, Database = Postgres>
         w.deleted_at,
         w.workspace_name,
         w.icon,
+        w.cover,
         wmc.member_count AS "member_count!",
         wm.role_id AS "role!"
       FROM af_workspace w
@@ -950,6 +983,7 @@ pub async fn select_all_user_non_guest_workspaces<'a, E: Executor<'a, Database =
         w.deleted_at,
         w.workspace_name,
         w.icon,
+        w.cover,
         wmc.member_count AS "member_count!",
         wm.role_id AS "role!"
       FROM af_workspace w
