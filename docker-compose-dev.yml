@@ -34,6 +34,27 @@ services:
     ports:
       - 6379:6379
 
+  onlyoffice:
+    restart: on-failure
+    image: onlyoffice/documentserver:${ONLYOFFICE_VERSION:-latest}
+    ports:
+      - 127.0.0.1:${APPFLOWY_DOCUMENT_SERVER_PORT:-8080}:80
+    environment:
+      - JWT_ENABLED=true
+      - JWT_HEADER=Authorization
+      - JWT_SECRET=${APPFLOWY_DOCUMENT_SERVER_JWT_SECRET}
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_log:/var/log/onlyoffice
+      - onlyoffice_lib:/var/lib/onlyoffice
+      - onlyoffice_db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost/healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
   gotrue:
     restart: on-failure
     image: appflowyinc/gotrue:${GOTRUE_VERSION:-latest}
@@ -104,3 +125,7 @@ services:
 
 volumes:
   postgres_data:
+  onlyoffice_data:
+  onlyoffice_log:
+  onlyoffice_lib:
+  onlyoffice_db:
