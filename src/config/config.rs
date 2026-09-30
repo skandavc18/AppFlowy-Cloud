@@ -29,6 +29,7 @@ pub struct Config {
   pub apple_oauth: AppleOAuthSetting,
   pub appflowy_web_url: String,
   pub notification: NotificationSetting,
+  pub code_execution: CodeExecutionSetting,
   pub open_ai_config: Option<OpenAIConfig>,
   pub azure_ai_config: Option<AzureConfig>,
 }
@@ -175,6 +176,16 @@ pub struct NotificationSetting {
   pub email_notification_grace_period_secs: u64,
 }
 
+#[derive(Clone, Debug)]
+pub struct CodeExecutionSetting {
+  pub enabled: bool,
+  pub runner_url: Option<String>,
+  pub runner_token: Option<Secret<String>>,
+  pub languages: Vec<String>,
+  pub max_code_bytes: usize,
+  pub max_timeout_ms: u64,
+}
+
 // Default values favor local development.
 pub fn get_configuration() -> Result<Config, anyhow::Error> {
   let (open_ai_config, azure_ai_config) = get_open_ai_config();
@@ -286,6 +297,22 @@ pub fn get_configuration() -> Result<Config, anyhow::Error> {
         "450",
       )
       .parse()?,
+    },
+    code_execution: CodeExecutionSetting {
+      enabled: get_env_var("APPFLOWY_CODE_EXECUTION_ENABLED", "false").parse()?,
+      runner_url: get_env_var_opt("APPFLOWY_CODE_EXECUTION_RUNNER_URL"),
+      runner_token: get_env_var_opt("APPFLOWY_CODE_EXECUTION_RUNNER_TOKEN").map(Secret::new),
+      languages: get_env_var(
+        "APPFLOWY_CODE_EXECUTION_LANGUAGES",
+        "python,javascript,c,cpp,java,rust",
+      )
+      .split(',')
+      .map(str::trim)
+      .filter(|language| !language.is_empty())
+      .map(ToOwned::to_owned)
+      .collect(),
+      max_code_bytes: get_env_var("APPFLOWY_CODE_EXECUTION_MAX_CODE_BYTES", "102400").parse()?,
+      max_timeout_ms: get_env_var("APPFLOWY_CODE_EXECUTION_MAX_TIMEOUT_MS", "10000").parse()?,
     },
     open_ai_config,
     azure_ai_config,

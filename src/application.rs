@@ -54,6 +54,7 @@ use snowflake::Snowflake;
 use crate::api::access_request::access_request_scope;
 use crate::api::ai::ai_completion_scope;
 use crate::api::chat::chat_scope;
+use crate::api::code_execution::code_execution_scope;
 use crate::api::data_import::data_import_scope;
 use crate::api::file_storage::file_storage_scope;
 use crate::api::guest::sharing_scope;
@@ -159,6 +160,7 @@ pub async fn run_actix_server(
       .service(ws_scope())
       .service(file_storage_scope())
       .service(chat_scope())
+      .service(code_execution_scope())
       .service(ai_completion_scope())
       .service(metrics_scope())
       .service(search_scope())
