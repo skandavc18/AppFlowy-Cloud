@@ -1,6 +1,7 @@
 use crate::pg_row::AFBlobMetadataRow;
 use crate::resource_usage::{
   delete_blob_metadata, get_blob_metadata, insert_blob_metadata, is_blob_metadata_exists,
+  update_blob_metadata,
 };
 use app_error::AppError;
 use async_trait::async_trait;
@@ -113,6 +114,28 @@ where
       .put_blob(&key.object_key(), file_stream, Some(&file_type))
       .await?;
     insert_blob_metadata(
+      &self.pg_pool,
+      &key.blob_metadata_key(),
+      key.workspace_id(),
+      &file_type,
+      file_size,
+    )
+    .await?;
+    Ok(())
+  }
+
+  pub async fn replace_blob_with_content_type<K: BlobKey>(
+    &self,
+    key: K,
+    file_stream: ByteStream,
+    file_type: String,
+    file_size: usize,
+  ) -> Result<(), AppError> {
+    self
+      .client
+      .put_blob(&key.object_key(), file_stream, Some(&file_type))
+      .await?;
+    update_blob_metadata(
       &self.pg_pool,
       &key.blob_metadata_key(),
       key.workspace_id(),

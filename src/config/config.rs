@@ -6,6 +6,7 @@ use async_openai::config::{AzureConfig, OpenAIConfig};
 use indexer::vector::embedder::get_open_ai_config;
 use infra::env_util::{get_env_var, get_env_var_opt};
 use mailer::config::MailerSetting;
+use reqwest::Url;
 use secrecy::{ExposeSecret, Secret};
 use semver::Version;
 use serde::Deserialize;
@@ -30,6 +31,7 @@ pub struct Config {
   pub appflowy_web_url: String,
   pub notification: NotificationSetting,
   pub code_execution: CodeExecutionSetting,
+  pub document_server: DocumentServerSetting,
   pub open_ai_config: Option<OpenAIConfig>,
   pub azure_ai_config: Option<AzureConfig>,
 }
@@ -186,6 +188,67 @@ pub struct CodeExecutionSetting {
   pub max_timeout_ms: u64,
 }
 
+#[derive(Clone, Debug)]
+pub struct DocumentServerSetting {
+  pub public_url: Option<String>,
+  pub internal_url: Option<String>,
+  pub callback_url: Option<String>,
+  pub jwt_secret: Option<Secret<String>>,
+  pub max_file_size_bytes: usize,
+}
+
+impl DocumentServerSetting {
+  pub fn is_configured(&self) -> bool {
+    valid_http_url(&self.public_url)
+      && valid_http_url(&self.internal_url)
+      && valid_http_url(&self.callback_url)
+      && self
+        .jwt_secret
+        .as_ref()
+        .is_some_and(|value| !value.expose_secret().trim().is_empty())
+      && self.max_file_size_bytes > 0
+  }
+
+  pub fn public_url(&self) -> &str {
+    self
+      .public_url
+      .as_deref()
+      .unwrap_or_default()
+      .trim_end_matches('/')
+  }
+
+  pub fn internal_url(&self) -> &str {
+    self
+      .internal_url
+      .as_deref()
+      .unwrap_or_default()
+      .trim_end_matches('/')
+  }
+
+  pub fn callback_url(&self) -> &str {
+    self
+      .callback_url
+      .as_deref()
+      .unwrap_or_default()
+      .trim_end_matches('/')
+  }
+
+  pub fn jwt_secret(&self) -> &str {
+    self
+      .jwt_secret
+      .as_ref()
+      .map(|value| value.expose_secret().as_str())
+      .unwrap_or_default()
+  }
+}
+
+fn valid_http_url(value: &Option<String>) -> bool {
+  value
+    .as_deref()
+    .and_then(|value| Url::parse(value.trim()).ok())
+    .is_some_and(|url| matches!(url.scheme(), "http" | "https") && url.host().is_some())
+}
+
 // Default values favor local development.
 pub fn get_configuration() -> Result<Config, anyhow::Error> {
   let (open_ai_config, azure_ai_config) = get_open_ai_config();
@@ -313,6 +376,14 @@ pub fn get_configuration() -> Result<Config, anyhow::Error> {
       .collect(),
       max_code_bytes: get_env_var("APPFLOWY_CODE_EXECUTION_MAX_CODE_BYTES", "102400").parse()?,
       max_timeout_ms: get_env_var("APPFLOWY_CODE_EXECUTION_MAX_TIMEOUT_MS", "10000").parse()?,
+    },
+    document_server: DocumentServerSetting {
+      public_url: get_env_var_opt("APPFLOWY_DOCUMENT_SERVER_PUBLIC_URL"),
+      internal_url: get_env_var_opt("APPFLOWY_DOCUMENT_SERVER_INTERNAL_URL"),
+      callback_url: get_env_var_opt("APPFLOWY_DOCUMENT_SERVER_CALLBACK_URL"),
+      jwt_secret: get_env_var_opt("APPFLOWY_DOCUMENT_SERVER_JWT_SECRET").map(Secret::new),
+      max_file_size_bytes: get_env_var("APPFLOWY_DOCUMENT_SERVER_MAX_FILE_SIZE_BYTES", "104857600")
+        .parse()?,
     },
     open_ai_config,
     azure_ai_config,

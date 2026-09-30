@@ -18,6 +18,7 @@ async fn server_info_handler(
         supported_client_features: vec![],
         minimum_supported_client_version: None,
         appflowy_web_url: state.config.appflowy_web_url.clone(),
+        document_server_available: state.config.document_server.is_configured(),
       })
       .into(),
   )

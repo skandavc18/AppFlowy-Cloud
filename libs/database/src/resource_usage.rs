@@ -63,6 +63,35 @@ pub async fn insert_blob_metadata(
   Ok(())
 }
 
+#[instrument(level = "trace", skip_all, err)]
+pub async fn update_blob_metadata(
+  pg_pool: &PgPool,
+  file_id: &str,
+  workspace_id: &Uuid,
+  file_type: &str,
+  file_size: usize,
+) -> Result<(), AppError> {
+  let result = sqlx::query(
+    r#"
+      UPDATE af_blob_metadata
+      SET file_type = $3, file_size = $4, modified_at = NOW()
+      WHERE workspace_id = $1 AND file_id = $2
+    "#,
+  )
+  .bind(workspace_id)
+  .bind(file_id)
+  .bind(file_type)
+  .bind(file_size as i64)
+  .execute(pg_pool)
+  .await?;
+  if result.rows_affected() != 1 {
+    return Err(AppError::RecordNotFound(format!(
+      "Blob metadata not found: {workspace_id}/{file_id}"
+    )));
+  }
+  Ok(())
+}
+
 #[derive(Debug, Clone)]
 pub struct BulkInsertMeta {
   pub object_id: String,

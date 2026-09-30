@@ -7,6 +7,7 @@ pub mod file_storage;
 pub mod guest;
 pub mod invite_code;
 pub mod metrics;
+pub mod office;
 pub mod search;
 pub mod server_info;
 pub mod template;

@@ -7,6 +7,7 @@ pub mod file_dto;
 pub mod guest_dto;
 pub mod history_dto;
 pub mod import_dto;
+pub mod office_dto;
 pub mod publish_dto;
 pub mod search_dto;
 pub mod server_info_dto;

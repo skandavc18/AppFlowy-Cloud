@@ -11,4 +11,6 @@ pub struct ServerInfoResponseItem {
   pub supported_client_features: Vec<SupportedClientFeatures>,
   pub minimum_supported_client_version: Option<String>,
   pub appflowy_web_url: String,
+  #[serde(default)]
+  pub document_server_available: bool,
 }

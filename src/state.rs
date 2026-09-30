@@ -29,6 +29,7 @@ use indexer::scheduler::IndexerScheduler;
 use snowflake::Snowflake;
 
 use crate::api::metrics::{AppFlowyWebMetrics, PublishedCollabMetrics, RequestMetrics};
+use crate::api::office::OfficeSessionStore;
 use crate::biz::chat::metrics::AIMetrics;
 use crate::biz::pg_listener::PgListeners;
 use crate::biz::workspace::publish::PublishedCollabStore;
@@ -61,6 +62,7 @@ pub struct AppState {
   pub ai_client: AppFlowyAIClient,
   pub indexer_scheduler: Arc<IndexerScheduler>,
   pub ws_server: Addr<WsServer>,
+  pub office_sessions: OfficeSessionStore,
 }
 
 impl AppState {

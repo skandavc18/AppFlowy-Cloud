@@ -60,6 +60,7 @@ use crate::api::file_storage::file_storage_scope;
 use crate::api::guest::sharing_scope;
 use crate::api::invite_code::invite_code_scope;
 use crate::api::metrics::metrics_scope;
+use crate::api::office::office_scope;
 use crate::api::search::search_scope;
 use crate::api::server_info::server_info_scope;
 use crate::api::template::template_scope;
@@ -163,6 +164,7 @@ pub async fn run_actix_server(
       .service(code_execution_scope())
       .service(ai_completion_scope())
       .service(metrics_scope())
+      .service(office_scope())
       .service(search_scope())
       .service(template_scope())
       .service(data_import_scope())
@@ -395,6 +397,7 @@ pub async fn init_state(config: &Config) -> Result<AppState, Error> {
     ai_client: appflowy_ai_client,
     indexer_scheduler,
     ws_server,
+    office_sessions: Default::default(),
   })
 }
 
