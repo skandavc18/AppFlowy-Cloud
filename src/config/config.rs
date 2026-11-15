@@ -32,6 +32,7 @@ pub struct Config {
   pub notification: NotificationSetting,
   pub code_execution: CodeExecutionSetting,
   pub document_server: DocumentServerSetting,
+  pub sync_folder: SyncFolderSetting,
   pub open_ai_config: Option<OpenAIConfig>,
   pub azure_ai_config: Option<AzureConfig>,
 }
@@ -249,6 +250,13 @@ fn valid_http_url(value: &Option<String>) -> bool {
     .is_some_and(|url| matches!(url.scheme(), "http" | "https") && url.host().is_some())
 }
 
+/// Settings of the `/api/sync-folders` file storage used by the app's folder sync.
+#[derive(Clone, Debug)]
+pub struct SyncFolderSetting {
+  /// Largest file, in bytes, that can be stored in a sync folder.
+  pub max_file_size: u64,
+}
+
 // Default values favor local development.
 pub fn get_configuration() -> Result<Config, anyhow::Error> {
   let (open_ai_config, azure_ai_config) = get_open_ai_config();
@@ -384,6 +392,12 @@ pub fn get_configuration() -> Result<Config, anyhow::Error> {
       jwt_secret: get_env_var_opt("APPFLOWY_DOCUMENT_SERVER_JWT_SECRET").map(Secret::new),
       max_file_size_bytes: get_env_var("APPFLOWY_DOCUMENT_SERVER_MAX_FILE_SIZE_BYTES", "104857600")
         .parse()?,
+    },
+    sync_folder: SyncFolderSetting {
+      // 2 GiB
+      max_file_size: get_env_var("APPFLOWY_SYNC_FOLDER_MAX_FILE_SIZE", "2147483648")
+        .parse()
+        .context("fail to get APPFLOWY_SYNC_FOLDER_MAX_FILE_SIZE")?,
     },
     open_ai_config,
     azure_ai_config,

@@ -63,6 +63,7 @@ use crate::api::metrics::metrics_scope;
 use crate::api::office::office_scope;
 use crate::api::search::search_scope;
 use crate::api::server_info::server_info_scope;
+use crate::api::sync_folders::sync_folders_scope;
 use crate::api::template::template_scope;
 use crate::api::user::user_scope;
 use crate::api::workspace::{collab_scope, workspace_scope};
@@ -170,6 +171,7 @@ pub async fn run_actix_server(
       .service(data_import_scope())
       .service(access_request_scope())
       .service(sharing_scope())
+      .service(sync_folders_scope())
       .route("/health", web::get().to(health_check))
       .app_data(Data::new(state.metrics.registry.clone()))
       .app_data(Data::new(state.metrics.request_metrics.clone()))

@@ -7,13 +7,15 @@ use aws_sdk_s3::operation::delete_object::DeleteObjectOutput;
 use std::ops::Deref;
 use std::time::{Duration, SystemTime};
 
-use aws_sdk_s3::error::SdkError;
+use aws_sdk_s3::error::{DisplayErrorContext, SdkError};
 use aws_sdk_s3::operation::delete_objects::DeleteObjectsOutput;
 use aws_sdk_s3::operation::get_object::GetObjectError;
 
 use aws_sdk_s3::presigning::PresigningConfig;
 use aws_sdk_s3::primitives::ByteStream;
-use aws_sdk_s3::types::{CompletedMultipartUpload, CompletedPart, Delete, ObjectIdentifier};
+use aws_sdk_s3::types::{
+  CompletedMultipartUpload, CompletedPart, Delete, Object, ObjectIdentifier,
+};
 use aws_sdk_s3::Client;
 use database_entity::file_dto::{
   CompleteUploadRequest, CreateUploadRequest, CreateUploadResponse, UploadPartData,
@@ -143,6 +145,240 @@ impl AwsS3BucketClientImpl {
     );
 
     Ok((content_len as usize, content_type))
+  }
+}
+
+/// An object found by [AwsS3BucketClientImpl::list_dir_entries].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct S3ObjectEntry {
+  pub key: String,
+  /// Size in bytes.
+  pub size: i64,
+  /// Last modification time in Unix epoch milliseconds.
+  pub last_modified_ms: i64,
+}
+
+impl S3ObjectEntry {
+  pub fn from_object(object: &Object) -> Option<Self> {
+    let last_modified_ms = object
+      .last_modified()
+      .and_then(|time| time.to_millis().ok())
+      .unwrap_or_default();
+    Some(Self {
+      key: object.key()?.to_string(),
+      size: object.size().unwrap_or_default(),
+      last_modified_ms,
+    })
+  }
+}
+
+/// Objects and rolled-up prefixes found by [AwsS3BucketClientImpl::list_dir_entries].
+#[derive(Debug, Default)]
+pub struct S3DirListing {
+  pub objects: Vec<S3ObjectEntry>,
+  /// Keys rolled up by the delimiter, such as `dir/sub/` for `dir/sub/file` when listing `dir/`.
+  pub common_prefixes: Vec<String>,
+}
+
+/// An object body being downloaded, see [AwsS3BucketClientImpl::get_object_stream].
+pub struct S3ObjectStream {
+  pub content_length: Option<i64>,
+  pub body: ByteStream,
+}
+
+impl AwsS3BucketClientImpl {
+  /// Lists every object under `prefix`, following continuation tokens.
+  ///
+  /// With a `delimiter`, `objects` only holds the direct children and deeper keys are rolled up
+  /// into `common_prefixes`.
+  pub async fn list_dir_entries(
+    &self,
+    prefix: &str,
+    delimiter: Option<&str>,
+  ) -> Result<S3DirListing, AppError> {
+    let mut listing = S3DirListing::default();
+    let mut continuation_token = None;
+    loop {
+      let output = self
+        .client
+        .list_objects_v2()
+        .bucket(&self.bucket)
+        .prefix(prefix)
+        .set_delimiter(delimiter.map(str::to_string))
+        .set_continuation_token(continuation_token.take())
+        .send()
+        .await
+        .map_err(|err| s3_error("Failed to list objects", err))?;
+
+      for object in output.contents() {
+        if let Some(entry) = S3ObjectEntry::from_object(object) {
+          listing.objects.push(entry);
+        }
+      }
+      for common_prefix in output.common_prefixes() {
+        if let Some(value) = common_prefix.prefix() {
+          listing.common_prefixes.push(value.to_string());
+        }
+      }
+
+      match output.next_continuation_token() {
+        Some(token) if output.is_truncated().unwrap_or_default() => {
+          continuation_token = Some(token.to_string());
+        },
+        _ => break,
+      }
+    }
+    Ok(listing)
+  }
+
+  /// Size and modification time of one object, or `None` when it does not exist.
+  ///
+  /// This reads a listing rather than HeadObject so the time has the precision of
+  /// [Self::list_dir_entries], as the Last-Modified header returned by HeadObject only has whole
+  /// seconds.
+  pub async fn object_entry(&self, key: &str) -> Result<Option<S3ObjectEntry>, AppError> {
+    let output = self
+      .client
+      .list_objects_v2()
+      .bucket(&self.bucket)
+      .prefix(key)
+      .max_keys(1)
+      .send()
+      .await
+      .map_err(|err| s3_error("Failed to read object metadata", err))?;
+    for object in output.contents() {
+      if object.key() == Some(key) {
+        return Ok(S3ObjectEntry::from_object(object));
+      }
+    }
+    Ok(None)
+  }
+
+  /// Starts downloading an object, or returns [AppError::RecordNotFound] when it does not exist.
+  pub async fn get_object_stream(&self, key: &str) -> Result<S3ObjectStream, AppError> {
+    let result = self
+      .client
+      .get_object()
+      .bucket(&self.bucket)
+      .key(key)
+      .send()
+      .await;
+    match result {
+      Ok(output) => Ok(S3ObjectStream {
+        content_length: output.content_length(),
+        body: output.body,
+      }),
+      Err(err) if is_no_such_key(&err) => Err(AppError::RecordNotFound(key.to_string())),
+      Err(err) => Err(s3_error("Failed to get object", err)),
+    }
+  }
+
+  /// Starts a multipart upload and returns its upload id.
+  pub async fn create_multipart_upload(
+    &self,
+    key: &str,
+    content_type: &str,
+  ) -> Result<String, AppError> {
+    let output = self
+      .client
+      .create_multipart_upload()
+      .bucket(&self.bucket)
+      .key(key)
+      .content_type(content_type)
+      .send()
+      .await
+      .map_err(|err| s3_error("Failed to create multipart upload", err))?;
+    output
+      .upload_id()
+      .map(str::to_string)
+      .ok_or_else(|| AppError::Internal(anyhow!("missing upload id")))
+  }
+
+  pub async fn upload_multipart_part(
+    &self,
+    key: &str,
+    upload_id: &str,
+    part_number: i32,
+    body: ByteStream,
+  ) -> Result<CompletedPart, AppError> {
+    let output = self
+      .client
+      .upload_part()
+      .bucket(&self.bucket)
+      .key(key)
+      .upload_id(upload_id)
+      .part_number(part_number)
+      .body(body)
+      .send()
+      .await
+      .map_err(|err| s3_error("Failed to upload part", err))?;
+    let e_tag = output
+      .e_tag()
+      .ok_or_else(|| AppError::Internal(anyhow!("missing part ETag")))?;
+    let part = CompletedPart::builder()
+      .e_tag(e_tag)
+      .part_number(part_number)
+      .build();
+    Ok(part)
+  }
+
+  pub async fn complete_multipart_upload(
+    &self,
+    key: &str,
+    upload_id: &str,
+    parts: Vec<CompletedPart>,
+  ) -> Result<(), AppError> {
+    let upload = CompletedMultipartUpload::builder()
+      .set_parts(Some(parts))
+      .build();
+    self
+      .client
+      .complete_multipart_upload()
+      .bucket(&self.bucket)
+      .key(key)
+      .upload_id(upload_id)
+      .multipart_upload(upload)
+      .send()
+      .await
+      .map_err(|err| s3_error("Failed to complete multipart upload", err))?;
+    Ok(())
+  }
+
+  pub async fn abort_multipart_upload(&self, key: &str, upload_id: &str) -> Result<(), AppError> {
+    self
+      .client
+      .abort_multipart_upload()
+      .bucket(&self.bucket)
+      .key(key)
+      .upload_id(upload_id)
+      .send()
+      .await
+      .map_err(|err| s3_error("Failed to abort multipart upload", err))?;
+    Ok(())
+  }
+}
+
+fn is_no_such_key(err: &SdkError<GetObjectError>) -> bool {
+  let status = err.raw_response().map(|raw| raw.status().as_u16());
+  matches!(err.as_service_error(), Some(GetObjectError::NoSuchKey(_))) || status == Some(404)
+}
+
+/// Maps a failed S3 request to an [AppError]. Failing to reach S3, or S3 failing to serve the
+/// request, is reported as temporary.
+fn s3_error<E>(action: &str, err: SdkError<E>) -> AppError
+where
+  E: std::error::Error + 'static,
+{
+  let status = err.raw_response().map(|raw| raw.status().as_u16());
+  let temporary = match &err {
+    SdkError::TimeoutError(_) | SdkError::DispatchFailure(_) => true,
+    _ => status.is_some_and(|status| status >= 500),
+  };
+  let message = format!("{action}: {}", DisplayErrorContext(&err));
+  if temporary {
+    AppError::ServiceTemporaryUnavailable(message)
+  } else {
+    AppError::Internal(anyhow!(message))
   }
 }
 

@@ -11,4 +11,5 @@ pub mod office_dto;
 pub mod publish_dto;
 pub mod search_dto;
 pub mod server_info_dto;
+pub mod sync_folder_dto;
 pub mod workspace_dto;

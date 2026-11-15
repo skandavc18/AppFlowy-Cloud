@@ -10,6 +10,7 @@ pub mod metrics;
 pub mod office;
 pub mod search;
 pub mod server_info;
+pub mod sync_folders;
 pub mod template;
 pub mod user;
 pub mod util;

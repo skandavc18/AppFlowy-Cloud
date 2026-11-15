@@ -4,6 +4,7 @@ use std::ops::Deref;
 mod delete_dir_test;
 mod multiple_part_test;
 mod put_and_get;
+mod sync_folders_test;
 mod usage;
 
 use appflowy_cloud::application::get_aws_s3_client;
